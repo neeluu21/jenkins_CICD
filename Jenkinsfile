@@ -1,9 +1,9 @@
-```groovy
+
 pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "neel196/jenkins-cicd"
+        IMAGE_NAME = 'neel196/jenkins-cicd'
         TAG = "${BUILD_NUMBER}"
     }
 
@@ -18,26 +18,32 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    docker build -t "$IMAGE_NAME:$TAG" .
-                    docker tag "$IMAGE_NAME:$TAG" "$IMAGE_NAME:latest"
+                    set -e
+                    docker build -t "${IMAGE_NAME}:${TAG}" .
+                    docker tag "${IMAGE_NAME}:${TAG}" "${IMAGE_NAME}:latest"
                 '''
             }
         }
 
         stage('Push Image to Docker Hub') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
                     sh '''
+                        set -e
                         set +x
-                        echo "$DOCKER_PASS" | docker login \
-                            -u "$DOCKER_USER" --password-stdin
 
-                        docker push "$IMAGE_NAME:$TAG"
-                        docker push "$IMAGE_NAME:latest"
+                        echo "$DOCKER_PASS" | docker login \
+                            --username "$DOCKER_USER" \
+                            --password-stdin
+
+                        docker push "${IMAGE_NAME}:${TAG}"
+                        docker push "${IMAGE_NAME}:latest"
 
                         docker logout
                     '''
@@ -48,16 +54,18 @@ pipeline {
         stage('Deploy to Jenkins EC2 Host') {
             steps {
                 sh '''
+                    set -e
+
                     docker stop student-app || true
                     docker rm student-app || true
 
-                    docker pull "$IMAGE_NAME:latest"
+                    docker pull "${IMAGE_NAME}:latest"
 
                     docker run -d \
                         --name student-app \
                         -p 80:80 \
                         --restart unless-stopped \
-                        "$IMAGE_NAME:latest"
+                        "${IMAGE_NAME}:latest"
                 '''
             }
         }
@@ -65,11 +73,10 @@ pipeline {
 
     post {
         success {
-            echo 'CI/CD pipeline completed successfully.'
+            echo 'CI/CD pipeline completed successfully!'
         }
         failure {
-            echo 'Pipeline failed. Review the stage logs above.'
+            echo 'Pipeline failed. Check Console Output for the error.'
         }
     }
 }
-```
